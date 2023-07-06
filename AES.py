@@ -183,6 +183,8 @@ def aes_encode(message, key):
     shift_row = shift_rows(sub)
     stage = add_round_key(shift_row, stages[10])
 
+    return stage
+
 def aes_decode(message, key):
     
     stages = key_expansion(key)
@@ -197,6 +199,8 @@ def aes_decode(message, key):
     i_shift_row = inv_shift_rows(stage)    
     i_sub = inv_sub_bytes(i_shift_row)
     stage = add_round_key(i_sub, stages[0])
+
+    return stage
 
 key = secrets.token_bytes(16)
 key = b'k\xbc\xf2\xbc\x804Z\x14\xfc\x81\xa8\xb1\xe1\x87>\x1b'
