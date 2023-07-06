@@ -1,3 +1,9 @@
+import secrets
+import random
+import sys
+
+sys.setrecursionlimit(1500)
+
 """
     Etapas:
     1 - KeyExpansion
@@ -165,7 +171,7 @@ def print_hex_state(state):
 def aes_encode(message, key):
 
     stages = key_expansion(key)
-    stage = add_round_key(key, stages[0])
+    stage = add_round_key(message, stages[0])
 
     for i in range(9):
         sub = sub_bytes(stage)
@@ -180,7 +186,7 @@ def aes_encode(message, key):
 def aes_decode(message, key):
     
     stages = key_expansion(key)
-    stage = add_round_key(key, stages[-1])
+    stage = add_round_key(message, stages[-1])
     
     for i in range(9):
         i_shift_row = inv_shift_rows(stage)
@@ -191,8 +197,6 @@ def aes_decode(message, key):
     i_shift_row = inv_shift_rows(stage)    
     i_sub = inv_sub_bytes(i_shift_row)
     stage = add_round_key(i_sub, stages[0])
-
-import secrets
 
 key = secrets.token_bytes(16)
 key = b'k\xbc\xf2\xbc\x804Z\x14\xfc\x81\xa8\xb1\xe1\x87>\x1b'
