@@ -136,30 +136,30 @@ def inv_mix_columns(state):
     return mix_columns(b''.join([new_columns[i::4] for i in range(4)]))
     
 def add_round_key(stage, roundkey):
-    return substage_key ^ roundkey
+    stage = int.from_bytes(stage, 'big')
+    roundkey = int.from_bytes(roundkey, 'big')
+    return (stage ^ roundkey).to_bytes(16, 'big')
 
 def key_expansion(key):
 
-    subkeys = [key[i::4] for i in range(4)]
-    print(subkeys)
-    w = [key[i::4] for i in range(4)]
-    print(w)
-
+    subkeys = [key[i:i+4] for i in range(0, 16, 4)]
+    w = [key[i:i+4] for i in range(0, 16, 4)]
+    
     for i in range(4, 44):
         
         aux = w[(i-1)%4]
         if i % 4 == 0:
-            rot_word = w[(i-1)%4][1:] + bytes(w[(i-1)%4][0])
-            sub_b = sub_bytes(rot_word)
+            aux = aux[1:] + int.to_bytes(aux[0], 1, 'big')
+            aux = sub_bytes(aux)
             rcon_i = bytes([rcon[i//4], 0, 0, 0])
-            aux = [sub_b[j] ^ rcon_i[j] for j in range(4)]
+            aux = [aux[j] ^ rcon_i[j] for j in range(4)]
         w[i%4] = bytes([w[i%4][j] ^ aux[j] for j in range(4)])
+
 
         subkeys.append(w[i%4])
 
     subkeys = b''.join(subkeys)
     subkeys = [subkeys[i:i+16] for i in range(0, len(subkeys), 16)]
-    subkeys = [b''.join(j[i::4] for i in range(4)) for j in subkeys]
     return subkeys
 
 def print_hex_state(state):
@@ -174,14 +174,15 @@ def aes_encode(message, key):
     stage = add_round_key(message, stages[0])
 
     for i in range(9):
-        sub = sub_bytes(stage)
-        shift_row = shift_rows(sub)
-        mix_col = mix_columns(shift_row)
-        stage = add_round_key(mix_col, stages[i+1])
+        stage = sub_bytes(stage)
+        stage = shift_rows(stage)
+        print([i for i in stage])
+        stage = mix_columns(stage)
+        stage = add_round_key(stage, stages[i+1])
 
-    sub = sub_bytes(stage)
-    shift_row = shift_rows(sub)
-    stage = add_round_key(shift_row, stages[10])
+    stage = sub_bytes(stage)
+    stage = shift_rows(stage)
+    stage = add_round_key(stage, stages[10])
 
     return stage
 
@@ -189,7 +190,7 @@ def aes_decode(message, key):
     
     stages = key_expansion(key)
     stage = add_round_key(message, stages[-1])
-    
+
     for i in range(9):
         i_shift_row = inv_shift_rows(stage)
         i_sub = inv_sub_bytes(i_shift_row)
@@ -202,17 +203,29 @@ def aes_decode(message, key):
 
     return stage
 
+
 key = secrets.token_bytes(16)
+message = secrets.token_bytes(16)
+message = b'\xffg\x03\xd8t\xd9\x04\xdc\xf5\xce\x90i"-\xd33'
 key = b'k\xbc\xf2\xbc\x804Z\x14\xfc\x81\xa8\xb1\xe1\x87>\x1b'
+'''
+print(message)
+print(key)
+print('mensagem:')
+print_hex_state(message)
+print('chave:')
 print_hex_state(key)
-sub = sub_bytes(key)
-i_sub = inv_sub_bytes(sub)
-sr = shift_rows(key)
-i_sr = inv_shift_rows(sr)
-mc = mix_columns(key)
-i_mc = inv_mix_columns(mc)
-print_hex_state(sr)
-print_hex_state(i_sr)
-#key_expansion(key)
-#for i in key_expansion(key):
-#    print(i)
+'''
+enc = aes_encode(message, key)
+print_hex_state(enc)
+'''
+dec = aes_decode(message, key)
+print('mensagem cifrada:')
+print_hex_state(enc)
+print('mensagem decifrada:')
+print_hex_state(dec)
+'''
+
+
+print_hex_state(b'\x89J\xa126\xf6\xb3W\t\xac\xa5\\W\xf6\xe2O')
+print_hex_state(b'\xffg\x03\xd8t\xd9\x04\xdc\xf5\xce\x90i"-\xd33')
