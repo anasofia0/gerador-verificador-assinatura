@@ -1,6 +1,11 @@
 import hashlib
 
-#hashlib.sha3_224()
+def RSA(message, key):
+    criptogram = []
+    for i in message
+        criptigram.append(pow(i, key[0], key[1]))
+
+    return bytes(criptogram)
 
 def mgf1(seed, length, hash_func=hashlib.sha3_256):
 
@@ -14,7 +19,10 @@ def mgf1(seed, length, hash_func=hashlib.sha3_256):
 
     return output[:length]
 
-def OAEP_cipher(message, key, label):
+def OAEP_cipher(message, key, label, seed):
+
+    label = bytes(plainText, 'utf-8')
+    seed = seed.to_bytes(32, 'big')
 
     hlen = 32
     k = 256
@@ -34,16 +42,19 @@ def OAEP_cipher(message, key, label):
     aux = int.to_bytes(0, 1, 'big')
     em = aux + maked_seed + masked_db
 
-    ## retornar cifra rsa de em
+    em = RSA(em, key)
 
     return em
 
-def OAEP_decipher(e_message, key, label):
+def OAEP_decipher(e_message, key, label, seed):
     
+    label = bytes(plainText, 'utf-8')
+
     hlen = 32
     k = 256
 
-    # decifrar rsa e_message
+    e_message = RSA(e_message, key)
+
     hash_l = hashlib.sha3_256(label)
     masked_seed = e_message[1:hlen]
     masked_db = e_message[hlen:]

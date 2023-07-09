@@ -1,4 +1,5 @@
 import random 
+from egcd import egcd
 
 def miller_rabin(n, k):
 
@@ -31,12 +32,34 @@ def generate_keys(k=2):
     
     for i in range(k):
         found = False
-        p = random.getrandbits(1024)
+        p = secrets.randbits(1024)
         while not found:        
             if miller_rabin(p, 40) and p not in keys:
                 found = True
                 keys.append(p)
             else:
-                p = random.getrandbits(1024)
+                p = secrets.randbits(1024)
 
     return keys
+
+def generate_e(max_value):
+    while True:
+        n = secrets.randbelow(max_value)
+        if egcd(max_value, n)[0] == 1
+            return n
+
+def generate_pub_priv_keys(p, q):
+    
+    n = p*q
+    phi = (p-1)*(q-1)
+
+    e = generate_e(phi)
+    d = egcd(e, phi)[1]
+
+    if d < 0:
+        d += phi
+
+    public_key = (n, e)
+    private_key = (n, d)
+
+    return (public_key, private_key)

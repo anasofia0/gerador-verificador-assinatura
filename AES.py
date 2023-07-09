@@ -64,11 +64,21 @@ rcon = bytes([
     0xD4, 0xB3, 0x7D, 0xFA, 0xEF, 0xC5, 0x91, 0x39,
 ])
 
+def bytes2rows(bytestring):
+    return [bytestring[i::4] for i in range(4)]
+
+def rows2bytes(rows):
+    out = b''
+    for i in range(4):
+        for j in range(4):
+            out += int.to_bytes(rows[j][i], 1, 'big')
+    return out
+
 def mulby2(i):
-    return ((i << 1) & 0xff) ^ ((i >> 7)&1 * 0x1b)
+    return (((i << 1) ^ 0x1B) & 0xFF) if (i & 0x80) else (i << 1)
 
 def matrix_mul_mixcol(column):
-    
+   
     aux_mulby2 = [0, 0, 0, 0]
     aux_mulby3 = [0, 0, 0, 0]
     new_column = [0, 0, 0, 0]
@@ -91,35 +101,38 @@ def inv_sub_bytes(state):
     return state.translate(inv_sbox)
 
 def shift_rows(state):
+    rows =  bytes2rows(state)
     shift = []
     for i in range(0, 16, 4):
-        aux = state[i:i+4]
+        aux = rows[i//4]
         shift.append(aux[i//4:]+aux[:i//4])
-
-    return b''.join(shift)
+    
+    shift = rows2bytes(shift)
+    return shift
 
 def inv_shift_rows(state):
+    rows = bytes2rows(state)
     shift = []
     for i in range(0, 16, 4):
-        aux = state[i:i+4]
+        aux = rows[i//4]
         shift.append(aux[-i//4:]+aux[:-i//4])
 
-    return b''.join(shift)
+    shift = rows2bytes(shift)
+    return shift
 
 def mix_columns(state):
     
-    columns = [state[i::4] for i in range(4)]
+    columns = [state[i:i+4] for i in range(0,16,4)]
     new_state = b''
-
     for column in columns:
         column = matrix_mul_mixcol(column)
         new_state += column
 
-    return b''.join([new_state[i::4] for i in range(4)])
+    return new_state
 
 def inv_mix_columns(state):
     
-    columns = [state[i::4] for i in range(4)]
+    columns = [state[i:i+4] for i in range(0, 16, 4)]
     new_columns = b''
 
     for column in columns:
@@ -130,10 +143,10 @@ def inv_mix_columns(state):
         aux[1] = column[1] ^ b
         aux[2] = column[2] ^ a
         aux[3] = column[3] ^ b
-
         new_columns += bytes(aux)
-
-    return mix_columns(b''.join([new_columns[i::4] for i in range(4)]))
+    
+    new_columns = mix_columns(new_columns)
+    return new_columns
     
 def add_round_key(stage, roundkey):
     stage = int.from_bytes(stage, 'big')
@@ -176,31 +189,29 @@ def aes_encode(message, key):
     for i in range(9):
         stage = sub_bytes(stage)
         stage = shift_rows(stage)
-        print([i for i in stage])
         stage = mix_columns(stage)
         stage = add_round_key(stage, stages[i+1])
 
     stage = sub_bytes(stage)
     stage = shift_rows(stage)
     stage = add_round_key(stage, stages[10])
-
+    print([i for i in stage])
     return stage
 
 def aes_decode(message, key):
     
     stages = key_expansion(key)
     stage = add_round_key(message, stages[-1])
-
+    stage = inv_shift_rows(stage)
+    stage = inv_sub_bytes(stage)
     for i in range(9):
-        i_shift_row = inv_shift_rows(stage)
-        i_sub = inv_sub_bytes(i_shift_row)
-        stage = add_round_key(i_sub, stages[-i-2])
+        stage = add_round_key(stage, stages[-i-2])
         stage = inv_mix_columns(stage)
+        stage = inv_shift_rows(stage)
+        stage = inv_sub_bytes(stage)
 
-    i_shift_row = inv_shift_rows(stage)    
-    i_sub = inv_sub_bytes(i_shift_row)
-    stage = add_round_key(i_sub, stages[0])
-
+    stage = add_round_key(stage, stages[0])
+    print([i for i in stage])
     return stage
 
 
@@ -208,6 +219,15 @@ key = secrets.token_bytes(16)
 message = secrets.token_bytes(16)
 message = b'\xffg\x03\xd8t\xd9\x04\xdc\xf5\xce\x90i"-\xd33'
 key = b'k\xbc\xf2\xbc\x804Z\x14\xfc\x81\xa8\xb1\xe1\x87>\x1b'
+
+'''
+print_hex_state(key)
+a = mix_columns(key)
+print_hex_state(a)
+b = inv_mix_columns(a)
+print_hex_state(b)
+
+'''
 '''
 print(message)
 print(key)
@@ -217,15 +237,19 @@ print('chave:')
 print_hex_state(key)
 '''
 enc = aes_encode(message, key)
-print_hex_state(enc)
-'''
-dec = aes_decode(message, key)
+dec = aes_decode(enc, key)
+print(enc)
+print(dec)
+print_hex_state(message)
 print('mensagem cifrada:')
 print_hex_state(enc)
 print('mensagem decifrada:')
 print_hex_state(dec)
+
+
+
 '''
-
-
 print_hex_state(b'\x89J\xa126\xf6\xb3W\t\xac\xa5\\W\xf6\xe2O')
 print_hex_state(b'\xffg\x03\xd8t\xd9\x04\xdc\xf5\xce\x90i"-\xd33')
+
+'''
