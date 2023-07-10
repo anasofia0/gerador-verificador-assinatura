@@ -1,8 +1,6 @@
 import secrets
 import random
-import sys
-
-sys.setrecursionlimit(1500)
+from key_gen import generate_keys
 
 """
     Etapas:
@@ -51,10 +49,10 @@ inv_sbox = bytes([
     0x96, 0xAC, 0x74, 0x22, 0xE7, 0xAD, 0x35, 0x85, 0xE2, 0xF9, 0x37, 0xE8, 0x1C, 0x75, 0xDF, 0x6E,
     0x47, 0xF1, 0x1A, 0x71, 0x1D, 0x29, 0xC5, 0x89, 0x6F, 0xB7, 0x62, 0x0E, 0xAA, 0x18, 0xBE, 0x1B,
     0xFC, 0x56, 0x3E, 0x4B, 0xC6, 0xD2, 0x79, 0x20, 0x9A, 0xDB, 0xC0, 0xFE, 0x78, 0xCD, 0x5A, 0xF4,
-    0x1F, 0xDD, 0xA8, 0x33, 0x88, 0x07, 0xC7, 0x31, 0xD1, 0x12, 0x10, 0x59, 0x27, 0x80, 0xEC, 0x5F,
+    0x1F, 0xDD, 0xA8, 0x33, 0x88, 0x07, 0xC7, 0x31, 0xB1, 0x12, 0x10, 0x59, 0x27, 0x80, 0xEC, 0x5F,
     0x60, 0x51, 0x7F, 0xA9, 0x19, 0xB5, 0x4A, 0x0D, 0x2D, 0xE5, 0x7A, 0x9F, 0x93, 0xC9, 0x9C, 0xEF,
     0xA0, 0xE0, 0x3B, 0x4D, 0xAE, 0x2A, 0xF5, 0xB0, 0xC8, 0xEB, 0xBB, 0x3C, 0x83, 0x53, 0x99, 0x61,
-    0x17, 0x2B, 0x04, 0x7E, 0xBA, 0x77, 0xD6, 0x26, 0xE1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0C, 0x7D
+    0x17, 0x2B, 0x04, 0x7E, 0xBA, 0x77, 0xD6, 0x26, 0xE1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0C, 0x7D,
 ])
 
 rcon = bytes([
@@ -84,7 +82,7 @@ def matrix_mul_mixcol(column):
     new_column = [0, 0, 0, 0]
 
     for i in range(4):
-        aux_mulby2[i] = mulby2(column[i]) 
+        aux_mulby2[i] = mulby2(column[i])
         aux_mulby3[i] = aux_mulby2[i]^column[i]
 
     new_column[0] = aux_mulby2[0] ^ aux_mulby3[1] ^ column[2] ^ column[3]
@@ -103,19 +101,18 @@ def inv_sub_bytes(state):
 def shift_rows(state):
     rows =  bytes2rows(state)
     shift = []
-    for i in range(0, 16, 4):
-        aux = rows[i//4]
-        shift.append(aux[i//4:]+aux[:i//4])
-    
+    for i in range(4):
+        aux = rows[i]
+        shift.append(aux[i:]+aux[:i])
     shift = rows2bytes(shift)
     return shift
 
 def inv_shift_rows(state):
     rows = bytes2rows(state)
     shift = []
-    for i in range(0, 16, 4):
-        aux = rows[i//4]
-        shift.append(aux[-i//4:]+aux[:-i//4])
+    for i in range(4):
+        aux = rows[i]
+        shift.append(aux[-i:]+aux[:-i])
 
     shift = rows2bytes(shift)
     return shift
@@ -153,6 +150,15 @@ def add_round_key(stage, roundkey):
     roundkey = int.from_bytes(roundkey, 'big')
     return (stage ^ roundkey).to_bytes(16, 'big')
 
+# def key_expansion(key):
+#     words = conver(key, 4)
+#     for i in range(4, 44):
+#         temp = words[i-1]
+#         if i % 4 == 0:
+#             *temp, = map(xor, rotate(temp).translate(SBOX), [RCON[i//4], 0, 0, 0])
+#         words.append(bytes([*map(xor, words[i-4], temp)]))
+#     return [b''.join(word) for word in convert(words, 4)]
+
 def key_expansion(key):
 
     subkeys = [key[i:i+4] for i in range(0, 16, 4)]
@@ -164,11 +170,12 @@ def key_expansion(key):
         if i % 4 == 0:
             aux = aux[1:] + int.to_bytes(aux[0], 1, 'big')
             aux = sub_bytes(aux)
-            rcon_i = bytes([rcon[i//4], 0, 0, 0])
-            aux = [aux[j] ^ rcon_i[j] for j in range(4)]
+
+            # rcon_i = bytes([rcon[i//4], 0, 0, 0])
+            aux_0 = int.to_bytes(aux[0] ^ rcon[i//4], 1, 'big')
+            aux = aux_0 + aux[1:]
+
         w[i%4] = bytes([w[i%4][j] ^ aux[j] for j in range(4)])
-
-
         subkeys.append(w[i%4])
 
     subkeys = b''.join(subkeys)
@@ -195,7 +202,6 @@ def aes_encode(message, key):
     stage = sub_bytes(stage)
     stage = shift_rows(stage)
     stage = add_round_key(stage, stages[10])
-    print([i for i in stage])
     return stage
 
 def aes_decode(message, key):
@@ -209,47 +215,37 @@ def aes_decode(message, key):
         stage = inv_mix_columns(stage)
         stage = inv_shift_rows(stage)
         stage = inv_sub_bytes(stage)
-
     stage = add_round_key(stage, stages[0])
-    print([i for i in stage])
     return stage
 
+def aes_ecb_cipher(message, key):
+    
+    message = bytes(message, 'utf-8')
+    message = [message[i:i+16] for i in range(0, len(message), 16)]
+    if len(message[-1]) < 16:
+        i = 16 - len(message[-1])
+        message[-1] = message[-1] + bytes([0]*i)
 
-key = secrets.token_bytes(16)
-message = secrets.token_bytes(16)
-message = b'\xffg\x03\xd8t\xd9\x04\xdc\xf5\xce\x90i"-\xd33'
-key = b'k\xbc\xf2\xbc\x804Z\x14\xfc\x81\xa8\xb1\xe1\x87>\x1b'
+    for i in range(len(message)):
+        message[i] = aes_encode(message[i], key)
 
-'''
-print_hex_state(key)
-a = mix_columns(key)
-print_hex_state(a)
-b = inv_mix_columns(a)
-print_hex_state(b)
+    message = b''.join(message)
 
-'''
-'''
-print(message)
-print(key)
-print('mensagem:')
-print_hex_state(message)
-print('chave:')
-print_hex_state(key)
-'''
-enc = aes_encode(message, key)
-dec = aes_decode(enc, key)
-print(enc)
-print(dec)
-print_hex_state(message)
-print('mensagem cifrada:')
-print_hex_state(enc)
-print('mensagem decifrada:')
-print_hex_state(dec)
+    return message
 
+def aes_ecb_decipher(message, key):
+    
+    message = [message[i:i+16] for i in range(0, len(message), 16)]
 
+    for i in range(len(message)):
+        message[i] = aes_decode(message[i], key)
 
-'''
-print_hex_state(b'\x89J\xa126\xf6\xb3W\t\xac\xa5\\W\xf6\xe2O')
-print_hex_state(b'\xffg\x03\xd8t\xd9\x04\xdc\xf5\xce\x90i"-\xd33')
+    message = b''.join(message)
 
-'''
+    return message
+
+def gcm_cipher():
+    pass
+
+def gcm_decipher():
+    pass
