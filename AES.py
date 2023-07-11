@@ -1,7 +1,3 @@
-import secrets
-import random
-from key_gen import generate_keys
-
 """
     Etapas:
     1 - KeyExpansion
@@ -15,6 +11,10 @@ from key_gen import generate_keys
         1 - SubBytes
         2 - ShiftRows
         3 - AddRoundKey
+"""
+
+"""
+    variáveis auxiliares
 """
 
 sbox = bytes([
@@ -62,6 +62,10 @@ rcon = bytes([
     0xD4, 0xB3, 0x7D, 0xFA, 0xEF, 0xC5, 0x91, 0x39,
 ])
 
+"""
+    funções auxiliares
+"""
+
 def bytes2rows(bytestring):
     return [bytestring[i::4] for i in range(4)]
 
@@ -75,6 +79,11 @@ def rows2bytes(rows):
 def mulby2(i):
     return (((i << 1) ^ 0x1B) & 0xFF) if (i & 0x80) else (i << 1)
 
+"""
+    implementação AES
+"""
+
+# multiplicação de uma coluna pela matrix pre-definida
 def matrix_mul_mixcol(column):
    
     aux_mulby2 = [0, 0, 0, 0]
@@ -92,12 +101,15 @@ def matrix_mul_mixcol(column):
 
     return bytes(new_column)
 
+# sub bytes
 def sub_bytes(state):
     return state.translate(sbox)
 
+# inverso de sub bytes
 def inv_sub_bytes(state):
     return state.translate(inv_sbox)
 
+# shift rows
 def shift_rows(state):
     rows =  bytes2rows(state)
     shift = []
@@ -107,6 +119,7 @@ def shift_rows(state):
     shift = rows2bytes(shift)
     return shift
 
+# inverso de shift rows
 def inv_shift_rows(state):
     rows = bytes2rows(state)
     shift = []
@@ -117,6 +130,7 @@ def inv_shift_rows(state):
     shift = rows2bytes(shift)
     return shift
 
+# mix columns completo
 def mix_columns(state):
     
     columns = [state[i:i+4] for i in range(0,16,4)]
@@ -127,6 +141,7 @@ def mix_columns(state):
 
     return new_state
 
+# inverso de mix columns
 def inv_mix_columns(state):
     
     columns = [state[i:i+4] for i in range(0, 16, 4)]
@@ -144,21 +159,14 @@ def inv_mix_columns(state):
     
     new_columns = mix_columns(new_columns)
     return new_columns
-    
+
+# adiciona chave de rodada
 def add_round_key(stage, roundkey):
     stage = int.from_bytes(stage, 'big')
     roundkey = int.from_bytes(roundkey, 'big')
     return (stage ^ roundkey).to_bytes(16, 'big')
 
-# def key_expansion(key):
-#     words = conver(key, 4)
-#     for i in range(4, 44):
-#         temp = words[i-1]
-#         if i % 4 == 0:
-#             *temp, = map(xor, rotate(temp).translate(SBOX), [RCON[i//4], 0, 0, 0])
-#         words.append(bytes([*map(xor, words[i-4], temp)]))
-#     return [b''.join(word) for word in convert(words, 4)]
-
+# expansão de chaves
 def key_expansion(key):
 
     subkeys = [key[i:i+4] for i in range(0, 16, 4)]
@@ -170,8 +178,6 @@ def key_expansion(key):
         if i % 4 == 0:
             aux = aux[1:] + int.to_bytes(aux[0], 1, 'big')
             aux = sub_bytes(aux)
-
-            # rcon_i = bytes([rcon[i//4], 0, 0, 0])
             aux_0 = int.to_bytes(aux[0] ^ rcon[i//4], 1, 'big')
             aux = aux_0 + aux[1:]
 
@@ -182,28 +188,34 @@ def key_expansion(key):
     subkeys = [subkeys[i:i+16] for i in range(0, len(subkeys), 16)]
     return subkeys
 
-def print_hex_state(state):
-    shex = state.hex()
-    for i in range(0,len(shex),8):
-        print(' '.join([shex[j:j+2] for j in range(i,i+8,2)]))
-    print()
-
+# aplica todas as etapas do AES e codifica mensagem 
 def aes_encode(message, key):
 
+    # 1 - expand key
     stages = key_expansion(key)
+    # 2 - add round key
     stage = add_round_key(message, stages[0])
 
+    # repetir 9 vezes:
+    # 1 - sub bytes
+    # 2 - shift rows
+    # 3 - mix columns
+    # 4 - add round key
     for i in range(9):
         stage = sub_bytes(stage)
         stage = shift_rows(stage)
         stage = mix_columns(stage)
         stage = add_round_key(stage, stages[i+1])
 
+    # 10 - sub bytes
     stage = sub_bytes(stage)
+    # 11 - shift row
     stage = shift_rows(stage)
+    # 12 - add round key
     stage = add_round_key(stage, stages[10])
     return stage
 
+# decodifica com as etapas reversas
 def aes_decode(message, key):
     
     stages = key_expansion(key)
@@ -218,6 +230,7 @@ def aes_decode(message, key):
     stage = add_round_key(stage, stages[0])
     return stage
 
+# aplica ecb para cifrar mensagens maiores que 128 bits
 def aes_ecb_cipher(message, key):
     
     message = bytes(message, 'utf-8')
@@ -233,6 +246,7 @@ def aes_ecb_cipher(message, key):
 
     return message
 
+# aplica ecb para decifrar mensagens maiores que 128 bits
 def aes_ecb_decipher(message, key):
     
     message = [message[i:i+16] for i in range(0, len(message), 16)]
@@ -243,9 +257,3 @@ def aes_ecb_decipher(message, key):
     message = b''.join(message)
 
     return message
-
-def gcm_cipher():
-    pass
-
-def gcm_decipher():
-    pass

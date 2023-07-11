@@ -4,6 +4,7 @@ import secrets
 import sys
 sys.setrecursionlimit(1500)
 
+# miller rabin
 def miller_rabin(n, k):
 
     if n == 2 or n == 3:
@@ -29,6 +30,7 @@ def miller_rabin(n, k):
             return False
     return True
 
+# gera k primos de key_length bit
 def generate_keys(k=2, key_length=1024):
 
     keys = []
@@ -45,15 +47,18 @@ def generate_keys(k=2, key_length=1024):
 
     return keys
 
-def generate_e(max_value):
+# gera e tal que gcd(e, phi)
+def generate_e(phi):
     while True:
-        n = secrets.randbelow(max_value)
-        if math.gcd(max_value, n) == 1:
-            return n
+        e = secrets.randbelow(phi)
+        if math.gcd(phi, e) == 1:
+            return e
 
+# gera inverso multiplicativo
 def generate_d(e, max_value):
     return modular_inversion(e, max_value)[1] % max_value
 
+# inversão modular com algoritmo de euclides
 def modular_inversion(e, max_value):
     if e == 0:
         return (max_value, 0, 1)
@@ -61,6 +66,7 @@ def modular_inversion(e, max_value):
         a, b, c = modular_inversion(max_value % e, e)
         return (a, c - (max_value // e) * b, b)
 
+# dado dois primos p e q, gera chaves pública e privada
 def generate_pub_priv_keys(p, q):
     
     n = p*q
@@ -68,9 +74,6 @@ def generate_pub_priv_keys(p, q):
 
     e = generate_e(phi)
     d = generate_d(e, phi)
-
-    if d < 0:
-        d += phi
 
     public_key = (n, e)
     private_key = (n, d)

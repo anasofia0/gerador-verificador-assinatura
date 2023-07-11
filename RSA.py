@@ -1,16 +1,14 @@
 import hashlib
 
-
+# realiza o xor de elemento por elemento entre dois objetos bytes
 def xor_bytes(a, b):
     return bytes(c ^ d for c, d in zip(a, b))
 
-def RSA(message, key):
+# cifração e decifração RSA
+def RSA(message, EorD, n):
+    return pow(message, EorD, n)
 
-    k = key[0].bit_length() // 8
-    message = int.from_bytes(message, 'big')
-    message = pow(message, key[1], key[0])
-    return message.to_bytes(k, 'big')
-
+# Mask Generation Function
 def mgf1(seed, length, hash_func=hashlib.sha3_256):
 
     count = 0
@@ -23,51 +21,60 @@ def mgf1(seed, length, hash_func=hashlib.sha3_256):
 
     return output[:length]
 
+# cifra com OAEP e depois RSA
 def OAEP_cipher(message, key, label, seed):
 
-    message = bytes(message, 'utf-8')
-    seed = seed.to_bytes(32, 'big')
+    seed = seed.to_bytes(32, 'big') # convertendo seed to bytes
 
     hlen = 32
-    k = 256
     mlen = len(message)
+    k = key[0].bit_length() // 8
 
     hash_l = hashlib.sha3_256(label).digest()
-    ps = int.to_bytes(0, k - mlen - 2*mlen - 2, 'big')
-    aux = int.to_bytes(1, 1, 'big')
-    db = hash_l + ps + aux + message
+    ps = int.to_bytes(0, k - mlen - 2*hlen - 2, 'big')
+    db = hash_l + ps + b'\x01' + message
     db_mask = mgf1(seed, k-hlen-1)
     masked_db = xor_bytes(db, db_mask)
     seed_mask = mgf1(masked_db, hlen)
     masked_seed = xor_bytes(seed, seed_mask)
-    aux = int.to_bytes(0, 1, 'big')
-    em = aux + masked_seed + masked_db
+    em = b'\x00' + masked_seed + masked_db
 
-    em = RSA(em, key)
+    em = RSA(int.from_bytes(em, 'big'), key[1], key[0]) # cifrando resultado de OAEP com RSA
 
     return em
 
+# decifra com RSA e depois OAEP
 def OAEP_decipher(e_message, key, label):
 
     hlen = 32
-    k = 256
+    k = key[0].bit_length() // 8
 
-    e_message = RSA(e_message, key)
+    e_message = RSA(e_message, key[1], key[0]).to_bytes(k, 'big') # decifrando para obter cifra OAEP
 
-    print(e_message)
+    masked_seed = e_message[1:hlen+1]
+    masked_db = e_message[-(k-hlen-1):]
 
-    hash_l = hashlib.sha3_256(label).digest()
-    masked_seed = e_message[1:hlen]
-    masked_db = e_message[hlen:]
     seed_mask = mgf1(masked_db, hlen)
     seed = xor_bytes(masked_seed, seed_mask)
     db_mask = mgf1(seed, k-hlen-1)
     db = xor_bytes(masked_db, db_mask)
     
+    message_padding = db[hlen:]
+
+    found = False
+    for i in range(len(message_padding)): # achando mensagem
+      if message_padding[i] == 1:
+        found = True
+        break
+      
+    message = message_padding[i+1:] # obtendo mensagem
+
+    hash_l = hashlib.sha3_256(label).digest()
     hash_l1 = db[:hlen]
 
-    print(db)
-
-    message = db.split(b'\x01')[-1]
+    # checagem para saber se for corretamente implementado
+    if e_message[0] != 0: raise ValueError('Encripted message does not starts with 0x00')
+    if not found: raise ValueError('Byte 0x01 not found between ps and message')
+    if hash_l != hash_l1: raise ValueError('Hashes differ from each other')
 
     return message
